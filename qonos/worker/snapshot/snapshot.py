@@ -169,8 +169,10 @@ class SnapshotProcessor(worker.JobProcessor):
 
         if active:
             self._process_retention(instance_id, job['schedule_id'])
-            payload['job'] = job
-            self._job_succeeded(job_id)
+            result = self._job_succeeded(job_id)
+            if result:
+                job['status'] = result.get('status')
+                job['timeout'] = result.get('timeout')
             self.send_notification_end(payload)
 
         LOG.debug("Snapshot complete")
@@ -336,7 +338,7 @@ class SnapshotProcessor(worker.JobProcessor):
         return nova_client
 
     def _job_succeeded(self, job_id):
-        self.update_job(job_id, 'DONE')
+        return self.update_job(job_id, 'DONE')
 
     def _job_timed_out(self, job_id):
         self.update_job(job_id, 'TIMED_OUT')

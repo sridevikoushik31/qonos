@@ -186,8 +186,8 @@ class Worker(object):
 
         LOG.debug(msg)
         try:
-            self.client.update_job_status(job_id, status, timeout,
-                                          error_message)
+            return self.client.update_job_status(job_id, status, timeout,
+                                                 error_message)
         except Exception:
             LOG.exception(_("Failed to update job status."))
 
@@ -215,7 +215,7 @@ class JobProcessor(object):
         self.send_notification('qonos.job.retry', payload, level)
 
     def update_job(self, job_id, status, timeout=None, error_message=None):
-        self.worker.update_job(job_id, status, timeout=timeout,
+        return self.worker.update_job(job_id, status, timeout=timeout,
                                error_message=error_message)
 
     def update_job_metadata(self, job_id, metadata):

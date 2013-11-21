@@ -202,6 +202,62 @@ class TestSnapshotProcessor(test_utils.BaseTestCase):
 
         self.mox.VerifyAll()
 
+    def test_process_job_should_notify_the_latest_payload(self):
+        timeutils.set_time_override()
+        self.nova_client.servers.get(mox.IsA(str)).AndReturn(MockServer())
+        self.nova_client.servers.create_image(mox.IsA(str),
+            mox.IsA(str), self.snapshot_meta).AndReturn(IMAGE_ID)
+        self.nova_client.images.get(IMAGE_ID).AndReturn(
+            MockImageStatus('ACTIVE'))
+        mock_retention = MockRetention()
+        payload_1 = {'status': 'QUEUED',
+                     'hard_timeout': self.job['hard_timeout'],
+                     'created_at': self.job['created_at'],
+                     'modified_at': self.job['modified_at'],
+                     'retry_count': 1,
+                     'schedule_id': '33333333-3333-3333-3333-33333333',
+                     'worker_id': '11111111-1111-1111-1111-11111111',
+                     'timeout': self.job['timeout'],
+                     'action': 'snapshot',
+                     'id': '22222222-2222-2222-2222-22222222',
+                     'tenant': '44444444-4444-4444-4444-44444444',
+                     'metadata': {'instance_id':
+                     '55555555-5555-5555-5555-55555555'}}
+        payload_2 = {'status': 'DONE',
+                     'hard_timeout': self.job['hard_timeout'],
+                     'created_at': self.job['created_at'],
+                     'modified_at': self.job['modified_at'],
+                     'retry_count': 1,
+                     'schedule_id': '33333333-3333-3333-3333-33333333',
+                     'worker_id': '11111111-1111-1111-1111-11111111',
+                     'timeout': self.job['timeout'],
+                     'action': 'snapshot',
+                     'id': '22222222-2222-2222-2222-22222222',
+                     'tenant': '44444444-4444-4444-4444-44444444',
+                     'metadata': {'instance_id':
+                     '55555555-5555-5555-5555-55555555',
+                     'image_id': IMAGE_ID}}
+        self._simple_prepare_worker_mock()
+
+        self.mox.StubOutWithMock(utils, 'generate_notification')
+        utils.generate_notification(None, 'qonos.job.run.start',
+                                    {'job': payload_1}, mox.IsA(str))
+        utils.generate_notification(None, 'qonos.job.run.end',
+                                    {'job': payload_2}, mox.IsA(str))
+        self.worker.get_qonos_client().AndReturn(self.qonos_client)
+        self.qonos_client.delete_schedule(mox.IsA(str))
+        self.worker.update_job(fakes.JOB_ID, 'DONE', timeout=None,
+                               error_message=None).\
+            AndReturn({'status': 'DONE', 'timeout': self.job['timeout']})
+        self.mox.ReplayAll()
+
+        processor = TestableSnapshotProcessor(self.nova_client)
+        processor.init_processor(self.worker)
+
+        processor.process_job(self.job)
+
+        self.mox.VerifyAll()
+
     def test_process_job_should_continue_when_image_id_present(self):
         timeutils.set_time_override()
         self.job['metadata']['image_id'] = IMAGE_ID
