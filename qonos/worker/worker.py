@@ -205,6 +205,9 @@ class JobProcessor(object):
     def send_notification(self, event_type, payload, level='INFO'):
         utils.generate_notification(None, event_type, payload, level)
 
+    def send_notification_job_update(self, payload, level='INFO'):
+        self.send_notification('qonos.job.update', payload, level)
+
     def send_notification_start(self, payload, level='INFO'):
         self.send_notification('qonos.job.run.start', payload, level)
 
@@ -216,7 +219,7 @@ class JobProcessor(object):
 
     def update_job(self, job_id, status, timeout=None, error_message=None):
         return self.worker.update_job(job_id, status, timeout=timeout,
-                               error_message=error_message)
+                                      error_message=error_message)
 
     def update_job_metadata(self, job_id, metadata):
         return self.worker.update_job_metadata(job_id, metadata)

@@ -77,6 +77,28 @@ class TestWorker(test_utils.BaseTestCase):
         self.processor.process_job.assert_called_once_with(job)
 
 
+class TestJobProcessor(test_utils.BaseTestCase):
+    def setUp(self):
+        super(TestJobProcessor, self).setUp()
+        self.processor = worker.JobProcessor()
+        self.processor.worker = mock.Mock()
+
+    def test_update_job(self):
+        status = 'ACTIVE'
+        error_message = 'error message'
+        timeout = 'timeout'
+        job = fakes.JOB['job']
+        self.processor.worker.update_job = mock.Mock()
+        self.processor.worker.update_job.return_value = status
+        self.assertEquals(status, self.processor.update_job(job['id'], status,
+                          timeout=timeout,
+                          error_message=error_message))
+        self.processor.worker.update_job.assert_called_with(job['id'], status,
+                                                            timeout=timeout,
+                                                            error_message=
+                                                            error_message)
+
+
 class TestWorkerWithMox(test_utils.BaseTestCase):
     def setUp(self):
         super(TestWorkerWithMox, self).setUp()
@@ -272,10 +294,10 @@ class TestWorkerWithMox(test_utils.BaseTestCase):
     def test_update_job(self):
         status = 'PROCESSING'
         self.client.update_job_status(unit_utils.JOB_UUID1, status,
-                                      None, None).AndReturn(fakes.WORKER)
+                                      None, None).AndReturn(status)
         self.mox.ReplayAll()
 
-        self.worker.update_job(unit_utils.JOB_UUID1, status)
+        self.assertEquals(status, self.worker.update_job(unit_utils.JOB_UUID1, status))
 
         self.mox.VerifyAll()
 
