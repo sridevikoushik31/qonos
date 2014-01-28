@@ -446,6 +446,31 @@ class TestSnapshotProcessor(test_utils.BaseTestCase):
 
         self.mox.VerifyAll()
 
+    def test_process_job_should_skip_job_for_conflicting_task_state(self):
+        timeutils.set_time_override()
+        self.job['metadata']['image_id'] = IMAGE_ID
+        old_timeout = self.job['timeout']
+        increment_to = datetime.timedelta(minutes = 60)
+
+        self.nova_client.servers.get(mox.IsA(str)).AndReturn(MockServer())
+        self.nova_client.servers.create_image(mox.IsA(str),
+            mox.IsA(str), self.snapshot_meta).AndRaise(exceptions.Conflict(409))
+        self._simple_prepare_worker_mock(skip_metadata_update=True)
+        timeout = self.job['timeout'] + increment_to
+        self.worker.update_job(self.job['id'], 'QUEUED', error_message=None, timeout=mox.IgnoreArg()).\
+                                                        AndReturn({'status': 'QUEUED', 'timeout': timeout})
+        self.worker.delink_job_from_worker(self.job['id'])
+        self.mox.ReplayAll()
+
+        processor = TestableSnapshotProcessor(self.nova_client)
+        processor.init_processor(self.worker)
+
+        processor.process_job(self.job)
+        self.assertTrue(self.job['timeout'] > old_timeout)
+        self.assertIsNone(self.job['worker_id'])
+
+        self.mox.VerifyAll()
+
     def test_process_job_should_succeed_after_multiple_tries(self):
         timeutils.set_time_override()
         self.nova_client.servers.get(mox.IsA(str)).AndReturn(MockServer())

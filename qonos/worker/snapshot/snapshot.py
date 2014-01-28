@@ -129,8 +129,16 @@ class SnapshotProcessor(worker.JobProcessor):
                 create_new_image = False
 
         if create_new_image:
-            image_id = self._create_image(job, instance_id,
-                                          job['schedule_id'])
+            time_out = now + self.timeout_increment
+            try:
+                image_id = self._create_image(job, instance_id,
+                                              job['schedule_id'])
+            except exceptions.Conflict:
+                self._job_queue(job, time_out)
+                self.delink_job_from_worker(job['id'])
+                job['worker_id'] = None
+                return
+
             if image_id is None:
                 return
         else:
@@ -339,6 +347,13 @@ class SnapshotProcessor(worker.JobProcessor):
     def _job_processing(self, job, timeout):
         response = self.update_job(job['id'], 'PROCESSING',
                                    timeout=self.next_timeout)
+        if response:
+            self._update_job_with_response(job, response)
+        self.send_notification_job_update({'job': job})
+
+    def _job_queue(self, job, timeout):
+        response = self.update_job(job['id'], 'QUEUED',
+                                   timeout=timeout)
         if response:
             self._update_job_with_response(job, response)
         self.send_notification_job_update({'job': job})

@@ -173,6 +173,11 @@ class Client(object):
         path = '/v1/jobs/%s/status' % job_id
         return self._do_request('PUT', path, body)['status']
 
+    def delink_job_from_worker(self, job_id):
+        body = {}
+        path = '/v1/jobs/%s/delink_worker' % job_id
+        return self._do_request('PUT', path, body)
+
     def delete_job(self, job_id):
         path = '/v1/jobs/%s' % job_id
         return self._do_request('DELETE', path)

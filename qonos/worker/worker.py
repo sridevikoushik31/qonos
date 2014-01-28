@@ -194,6 +194,9 @@ class Worker(object):
     def update_job_metadata(self, job_id, metadata):
         return self.client.update_job_metadata(job_id, metadata)
 
+    def delink_job_from_worker(self, job_id):
+        self.client.delink_job_from_worker(job_id)
+
 
 class JobProcessor(object):
     def __init__(self):
@@ -233,6 +236,9 @@ class JobProcessor(object):
         Called BEFORE the worker is registered with QonoS.
         """
         self.worker = worker
+
+    def delink_job_from_worker(self, job_id):
+        self.worker.delink_job_from_worker(job_id)
 
     def process_job(self, job):
         """

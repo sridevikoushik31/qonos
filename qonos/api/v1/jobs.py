@@ -152,6 +152,14 @@ class JobsController(object):
             msg = _('Job %s could not be found.') % job_id
             raise webob.exc.HTTPNotFound(explanation=msg)
 
+    def delink_worker_from_job(self, request, job_id):
+        values = {'worker_id': None}
+        try:
+            self.db_api.job_update(job_id, values)
+        except exception.NotFound:
+            msg = _('Job %s could not be found.') % job_id
+            raise webob.exc.HTTPNotFound(explanation=msg)
+
     def update_status(self, request, job_id, body):
         status = body.get('status')
         if not status:

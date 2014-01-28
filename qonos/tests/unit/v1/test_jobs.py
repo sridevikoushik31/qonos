@@ -458,6 +458,13 @@ class TestJobsApi(test_utils.BaseTestCase):
         self.assertEqual(actual_status, body['status']['status'])
         self.assertEqual(actual_timeout, timeout)
 
+    def test_delink_worker(self):
+        request = unit_utils.get_fake_request(method='PUT')
+        self.controller.delink_worker_from_job(request,
+                                               self.job_1['id'])
+        updated_job = db_api.job_get_by_id(self.job_1['id'])
+        self.assertIsNone(updated_job['worker_id'])
+
     def test_update_status_without_timeout(self):
         request = unit_utils.get_fake_request(method='PUT')
         body = {'status': {'status': 'DONE'}}

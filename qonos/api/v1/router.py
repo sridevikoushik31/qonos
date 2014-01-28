@@ -93,6 +93,11 @@ class API(wsgi.Router):
                        action='update_status',
                        conditions=dict(method=['PUT']))
 
+        mapper.connect('/jobs/{job_id}/delink_worker',
+                       controller=jobs_resource,
+                       action='delink_worker_from_job',
+                       conditions=dict(method=['PUT']))
+
         job_meta_resource = job_metadata.create_resource()
 
         mapper.connect('/jobs/{job_id}/metadata',
