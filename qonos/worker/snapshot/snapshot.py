@@ -114,50 +114,25 @@ class SnapshotProcessor(worker.JobProcessor):
         self._job_processing(job, self.next_timeout)
         self.next_update = self._get_utcnow() + self.update_interval
 
-        instance_id = self._get_instance_id(job)
+        self.instance_id = instance_id = self._get_instance_id(job)
         if not instance_id:
             msg = ('Job %s does not specify an instance_id in its metadata.'
                    % job_id)
             self._job_cancelled(job, msg)
             return
 
-        create_new_image = True
-        if ('image_id' in job['metadata']):
-            image_id = job['metadata']['image_id']
-            image_status, error_msg = self._get_image_status(image_id)
-            if not (image_status in _FAILED_IMAGE_STATUSES):
-                create_new_image = False
-
-        if create_new_image:
-            image_id = self._create_image(job, instance_id,
-                                          job['schedule_id'])
-            if image_id is None:
+        self.image_id = self._create_image_if_not_exists()
+        if self.image_id is None:
                 return
-        else:
-            LOG.info(_("Worker %(worker_id)s Resuming image: %(image_id)s")
-                     % {'worker_id': self.worker.worker_id,
-                        'image_id': image_id})
+        LOG.info(_("Worker %(worker_id)s Resuming image: %(image_id)s")
+                 % {'worker_id': self.worker.worker_id,
+                 'image_id': self.image_id})
 
         active = False
         retry = True
 
         while retry and not active:
-            image_status, error_msg = self._get_image_status(image_id)
-            if (image_status in _FAILED_IMAGE_STATUSES):
-                instance_id = self._get_instance_id(self.current_job)
-                msg = _("Error occured while polling snapshot. "
-                        "Image status: %(image_status)s. "
-                        "Instance: %(instance)s, image_id: %(image)s threw "
-                        "error msg: %(error)s.")
-                msg = msg % {'image_status': image_status,
-                             'instance': instance_id,
-                             'image': image_id,
-                             'error': error_msg}
-                timeout = self._get_updated_job_timeout(self.current_job['id'])
-                self.update_job(job['id'], 'ERROR', timeout=timeout,
-                                error_message=msg)
-                raise exc.PollingException(msg)
-
+            image_status = self._poll_for_image_status()
             active = image_status == 'ACTIVE'
             if not active:
                 retry = self._try_update(job_id, "PROCESSING")
@@ -169,7 +144,40 @@ class SnapshotProcessor(worker.JobProcessor):
         if active:
             self._process_retention(instance_id, job['schedule_id'])
             self._job_succeeded(job)
-        LOG.debug("Snapshot complete")
+            LOG.debug("Snapshot complete")
+
+    def _poll_for_image_status(self):
+        image_status, error_msg = self._get_image_status(self.image_id)
+        if (image_status in _FAILED_IMAGE_STATUSES):
+            instance_id = self._get_instance_id(self.current_job)
+            msg = _("Error occured while polling snapshot. "
+                    "Image status: %(image_status)s. "
+                    "Instance: %(instance)s, image_id: %(image)s threw "
+                    "error msg: %(error)s.")
+            msg = msg % {'image_status': image_status,
+                         'instance': instance_id,
+                         'image': self.image_id,
+                         'error': error_msg}
+            timeout = self._get_updated_job_timeout(self.current_job['id'])
+            self.update_job(self.current_job['id'], 'ERROR', timeout=timeout,
+                            error_message=msg)
+            raise exc.PollingException(msg)
+        return image_status
+
+    def _create_image_if_not_exists(self):
+        create_new_image = True
+        image_id = None
+        if ('image_id' in self.current_job['metadata']):
+            image_id = self.current_job['metadata']['image_id']
+            image_status, error_msg = self._get_image_status(image_id)
+            if not (image_status in _FAILED_IMAGE_STATUSES):
+                create_new_image = False
+
+        if create_new_image:
+            image_id = self._create_image(self.current_job,
+                                          self.instance_id,
+                                          self.current_job['schedule_id'])
+        return image_id
 
     def cleanup_processor(self):
         """
